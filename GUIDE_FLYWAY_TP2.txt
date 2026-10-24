@@ -1,0 +1,350 @@
+================================================================================
+                         GUIDE COMPLET - FLYWAY
+              TP2 : VERSIONNEMENT DE BASE DE DONNEES
+================================================================================
+
+Projet concerne :
+  Application de gestion des étudiants
+  Backend : Spring Boot 3 / Java / Spring Data JPA
+  Frontend : React / Vite
+  Base locale : H2
+  Base cible : PostgreSQL, notamment pour Azure
+
+Dossier concerne :
+  FlyWay\students-api
+
+Ce document explique :
+  1. pourquoi utiliser Flyway ;
+  2. comment Flyway fonctionne ;
+  3. comment Flyway est utilisé dans notre projet ;
+  4. comment réaliser une future modification ;
+  5. comment tester et prouver que la migration fonctionne ;
+  6. quelles erreurs doivent être évitées.
+
+
+================================================================================
+1. POURQUOI UTILISER FLYWAY ?
+================================================================================
+
+Une base de donnees evolue avec l'application. Par exemple :
+
+  - au début, la table STUDENT contient l'identité et les informations de base ;
+  - plus tard, on ajoute une date de création ;
+  - ensuite, on ajoute une adresse, une relation avec une filière ou un index.
+
+Modifier directement la base à la main pose plusieurs problèmes :
+
+  - les développeurs ne réalisent pas tous les mêmes modifications ;
+  - l'environnement de test peut être différent de la production ;
+  - on ne sait plus qui a exécuté quelle modification ;
+  - une modification peut être oubliée lors d'un déploiement ;
+  - il est difficile de reconstruire une base vide de manière fiable.
+
+Flyway applique une solution simple :
+
+  - chaque modification est écrite dans un fichier SQL versionné ;
+  - les fichiers sont conservés dans Git avec le code source ;
+  - Flyway exécute les scripts dans l'ordre ;
+  - Flyway enregistre les scripts exécutés dans flyway_schema_history ;
+  - un script déjà exécuté ne doit plus être modifié.
+
+La base devient ainsi reproductible, traçable et vérifiable.
+
+
+================================================================================
+2. COMMENT FONCTIONNE FLYWAY ?
+================================================================================
+
+Au démarrage de Spring Boot, l'ordre logique est le suivant :
+
+  1. Spring ouvre une connexion vers H2 ou PostgreSQL.
+  2. Flyway cherche les scripts dans :
+       classpath:db/migration
+  3. Flyway crée flyway_schema_history si elle n'existe pas.
+  4. Flyway compare les scripts présents avec son historique.
+  5. Flyway vérifie les checksums des scripts déjà appliqués.
+  6. Flyway exécute uniquement les nouvelles versions.
+  7. Spring Data JPA démarre.
+  8. Hibernate utilise ddl-auto=validate et vérifie le schéma.
+  9. L'API REST devient disponible.
+
+Configuration de notre projet :
+
+  spring.flyway.enabled=true
+  spring.flyway.locations=classpath:db/migration
+  spring.jpa.hibernate.ddl-auto=validate
+
+Le rôle de Hibernate est volontairement limité à la validation. Il ne doit pas
+créer ou modifier automatiquement le schéma avec ddl-auto=update.
+
+
+================================================================================
+3. EXEMPLE EXACT DANS NOTRE PROJET
+================================================================================
+
+Les migrations sont dans :
+
+  FlyWay\students-api\src\main\resources\db\migration
+
+Migration initiale :
+
+  V1__init_schema.sql
+
+Elle :
+
+  - crée la table student ;
+  - crée l'identifiant ;
+  - crée first_name, last_name, email, age et filiere ;
+  - insère Alice, Bob, Camille, David et Emma.
+
+Migration d'évolution :
+
+  V2__add_student_created_at.sql
+
+Elle ajoute :
+
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+
+Cette migration démontre une évolution réelle du schéma sans supprimer les
+étudiants déjà présents.
+
+Historique Flyway :
+
+  flyway_schema_history
+
+Les deux lignes attendues sont :
+
+  version 1 - init schema
+  version 2 - add student created at
+
+
+================================================================================
+4. REGLE DE NOMMAGE ET REGLE D'IMMUTABILITE
+================================================================================
+
+Le format recommandé est :
+
+  V<version>__<description>.sql
+
+Exemples :
+
+  V1__init_schema.sql
+  V2__add_student_created_at.sql
+  V3__add_student_phone.sql
+
+Le séparateur entre la version et la description est deux underscores.
+
+REGLE ABSOLUE :
+
+  Ne jamais modifier V1 ou V2 après leur exécution.
+
+Même une correction mineure dans V1 ou V2 peut modifier le checksum. Flyway
+détectera alors une différence entre le fichier et l'historique de la base.
+
+Pour corriger ou faire évoluer le schéma, il faut toujours créer une nouvelle
+version, par exemple V3.
+
+
+================================================================================
+5. EXEMPLE D'UNE FUTURE MODIFICATION
+================================================================================
+
+Objectif :
+  Ajouter le numéro de téléphone d'un étudiant.
+
+Etape 1 - créer un nouveau fichier :
+
+  FlyWay\students-api\src\main\resources\db\migration\
+  V3__add_student_phone.sql
+
+Contenu :
+
+  ALTER TABLE student
+      ADD COLUMN phone VARCHAR(30);
+
+Pourquoi la colonne est-elle nullable ?
+
+  Les cinq étudiants déjà présents n'ont pas encore de téléphone. Une colonne
+  obligatoire sans valeur par défaut pourrait faire échouer la migration.
+
+Etape 2 - si le champ doit exister dans l'application :
+
+  - ajouter phone dans Student.java ;
+  - ajouter le getter et le setter ;
+  - ajouter phone dans les objets JSON ou DTO si le projet en utilise ;
+  - adapter les formulaires React ;
+  - adapter les contrôles de validation ;
+  - ne modifier ces éléments qu'après avoir défini le contrat attendu.
+
+Etape 3 - lancer les tests :
+
+  Set-Location "C:\Users\DELL\Documents\Master\Master_M2I\SEMESTRE 3\Génie Logiciel\TPs\TP-GL\Projet - Final\FlyWay\students-api"
+  mvn clean test
+
+Etape 4 - lancer l'application :
+
+  mvn spring-boot:run
+
+Flyway doit exécuter V3 une seule fois, puis laisser V1 et V2 inchangées.
+
+
+================================================================================
+6. TESTS AUTOMATIQUES
+================================================================================
+
+Commande :
+
+  Set-Location "C:\Users\DELL\Documents\Master\Master_M2I\SEMESTRE 3\Génie Logiciel\TPs\TP-GL\Projet - Final\FlyWay\students-api"
+  mvn clean test
+
+Résultat attendu :
+
+  Tests run: 6, Failures: 0, Errors: 0, Skipped: 0
+  BUILD SUCCESS
+
+Les tests de StudentsApiApplicationTests.java vérifient notamment :
+
+  - le démarrage du contexte Spring ;
+  - la présence des cinq étudiants initiaux ;
+  - l'exécution de deux migrations versionnées ;
+  - la présence de CREATED_AT ;
+  - la conservation des données après V2 ;
+  - GET, POST, PUT et DELETE.
+
+Après l'ajout de V3, ajouter un test ciblé qui vérifie que PHONE existe.
+Le test doit vérifier la structure réelle en base, et pas seulement que le code
+Java compile.
+
+
+================================================================================
+7. TESTS MANUELS DE L'API
+================================================================================
+
+Démarrage :
+
+  mvn spring-boot:run
+
+Lecture :
+
+  Invoke-RestMethod -Method Get `
+    -Uri "http://localhost:8081/api/students"
+
+Création :
+
+  $body = @{
+    firstName = "Test"
+    lastName = "Flyway"
+    email = "test.flyway@etud.fr"
+    age = 24
+    filiere = "Informatique"
+  } | ConvertTo-Json
+
+  Invoke-WebRequest -UseBasicParsing -Method Post `
+    -Uri "http://localhost:8081/api/students" `
+    -ContentType "application/json" `
+    -Body $body
+
+Le statut attendu est 201. L'identifiant retourné doit être utilisé tel quel.
+Il ne faut pas écrire le mot ID dans l'URL.
+
+Exemple de modification avec l'identifiant 6 :
+
+  $body = @{
+    firstName = "TestModifie"
+    lastName = "Flyway"
+    email = "test.modifie@etud.fr"
+    age = 25
+    filiere = "Mathématiques"
+  } | ConvertTo-Json
+
+  Invoke-WebRequest -UseBasicParsing -Method Put `
+    -Uri "http://localhost:8081/api/students/6" `
+    -ContentType "application/json" `
+    -Body $body
+
+Suppression :
+
+  Invoke-WebRequest -UseBasicParsing -Method Delete `
+    -Uri "http://localhost:8081/api/students/6"
+
+Le statut attendu est 204.
+
+
+================================================================================
+8. VERIFICATION DANS H2
+================================================================================
+
+Ouvrir :
+
+  http://localhost:8081/h2-console
+
+Paramètres :
+
+  JDBC URL : jdbc:h2:mem:studentsdb
+  User     : sa
+  Password : vide
+
+Historique Flyway, avec les noms cités nécessaires pour H2 :
+
+  SELECT "installed_rank", "version", "description", "success"
+  FROM "flyway_schema_history"
+  ORDER BY "installed_rank";
+
+Compter les migrations réussies :
+
+  SELECT COUNT(*) AS nombre_migrations
+  FROM "flyway_schema_history"
+  WHERE "success" = TRUE
+    AND "version" IS NOT NULL;
+
+Résultat attendu avant V3 : 2.
+Résultat attendu après V3 : 3.
+
+Vérifier la table :
+
+  SELECT ID, FIRST_NAME, LAST_NAME, CREATED_AT
+  FROM STUDENT
+  ORDER BY ID;
+
+Après un POST, le nombre d'étudiants doit augmenter. H2 mem est réinitialisée
+après un redémarrage, ce qui est normal.
+
+
+================================================================================
+9. CRITERES DE REUSSITE ET ERREURS A EVITER
+================================================================================
+
+La migration est validée si :
+
+  - mvn clean test termine par BUILD SUCCESS ;
+  - le nombre de migrations attendu apparaît dans l'historique ;
+  - success vaut TRUE pour chaque migration ;
+  - la nouvelle colonne existe réellement ;
+  - les données existantes sont conservées ;
+  - l'API reste fonctionnelle ;
+  - le frontend continue à fonctionner.
+
+Erreurs fréquentes :
+
+  - lancer Flyway et Liquibase sur le même port 8081 ;
+  - modifier V1 ou V2 ;
+  - oublier les deux underscores du nom du fichier ;
+  - utiliser l'URL /api/students/ID au lieu d'un nombre ;
+  - croire qu'un redémarrage conserve une base H2 mem ;
+  - utiliser ddl-auto=update pour contourner une migration ;
+  - déclarer une colonne NOT NULL sans valeur pour les anciennes lignes.
+
+
+================================================================================
+10. CONCLUSION
+================================================================================
+
+Dans ce projet, Flyway est adapté lorsque l'équipe veut :
+
+  - écrire des migrations SQL explicites ;
+  - garder un contrôle précis sur chaque instruction SQL ;
+  - suivre une séquence V1, V2, V3 facile à comprendre ;
+  - appliquer les mêmes scripts sur H2 et PostgreSQL.
+
+La preuve finale est composée des tests Maven, des tests API, de l'historique
+flyway_schema_history et de la vérification de la structure dans H2.

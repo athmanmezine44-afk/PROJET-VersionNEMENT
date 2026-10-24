@@ -1,0 +1,354 @@
+================================================================================
+                       GUIDE COMPLET - LIQUIBASE
+              TP2 : VERSIONNEMENT DE BASE DE DONNEES
+================================================================================
+
+Projet concerne :
+  Application de gestion des étudiants
+  Backend : Spring Boot 3 / Java / Spring Data JPA
+  Frontend : React / Vite
+  Base locale : H2
+  Base cible : PostgreSQL, notamment pour Azure
+
+Dossier concerne :
+  Liquibase\students-api
+
+Ce document explique :
+  1. pourquoi utiliser Liquibase ;
+  2. comment fonctionne un changelog et un changeset ;
+  3. comment Liquibase est utilisé dans notre projet ;
+  4. comment réaliser une future modification ;
+  5. comment tester et prouver que la migration fonctionne ;
+  6. quelles erreurs doivent être évitées.
+
+
+================================================================================
+1. POURQUOI UTILISER LIQUIBASE ?
+================================================================================
+
+Le schéma de la base doit évoluer avec le code, mais une modification manuelle
+ne laisse pas une trace suffisamment fiable. Elle peut aussi provoquer un
+écart entre développement, test et production.
+
+Liquibase fournit un mécanisme de changements contrôlés :
+
+  - chaque évolution est décrite dans un changeset ;
+  - les changesets sont regroupés dans un changelog principal ;
+  - chaque changeset possède un identifiant et un auteur ;
+  - Liquibase calcule et contrôle son checksum ;
+  - les changesets exécutés sont enregistrés dans DATABASECHANGELOG ;
+  - DATABASECHANGELOGLOCK évite que deux migrations concurrentes s'exécutent.
+
+Liquibase est particulièrement utile lorsque l'équipe veut décrire les
+changements avec des blocs structurés comme createTable, addColumn,
+addForeignKeyConstraint ou insert, au lieu d'écrire tout le DDL à la main.
+
+
+================================================================================
+2. COMMENT FONCTIONNE LIQUIBASE ?
+================================================================================
+
+Au démarrage de Spring Boot :
+
+  1. Spring ouvre une connexion vers H2 ou PostgreSQL.
+  2. Liquibase lit le fichier master changelog.
+  3. Le master inclut les fichiers de changements dans l'ordre voulu.
+  4. Liquibase vérifie DATABASECHANGELOGLOCK.
+  5. Liquibase compare les identifiants, auteurs et checksums.
+  6. Les changesets absents sont exécutés.
+  7. Le résultat est écrit dans DATABASECHANGELOG.
+  8. Le verrou est libéré dans DATABASECHANGELOGLOCK.
+  9. Hibernate valide le schéma avec ddl-auto=validate.
+
+Configuration de notre projet :
+
+  spring.liquibase.enabled=true
+  spring.liquibase.change-log=classpath:db/changelog/db.changelog-master.yaml
+  spring.jpa.hibernate.ddl-auto=validate
+
+Liquibase gère le schéma. Hibernate vérifie seulement que l'entité Java peut
+fonctionner avec ce schéma.
+
+
+================================================================================
+3. EXEMPLE EXACT DANS NOTRE PROJET
+================================================================================
+
+Changelog principal :
+
+  Liquibase\students-api\src\main\resources\db\changelog\
+  db.changelog-master.yaml
+
+Il inclut deux fichiers :
+
+  changes/001-create-student-table.yaml
+  changes/002-add-student-created-at.yaml
+
+Changeset 001 :
+
+  - crée la table student ;
+  - définit les colonnes de base ;
+  - insère Alice, Bob, Camille, David et Emma.
+
+Changeset 002 :
+
+  - ajoute created_at ;
+  - utilise un timestamp par défaut ;
+  - conserve les lignes déjà présentes.
+
+Tables d'historique :
+
+  DATABASECHANGELOG
+  DATABASECHANGELOGLOCK
+
+Les deux lignes attendues dans DATABASECHANGELOG sont :
+
+  001-create-student-table
+  002-add-student-created-at
+
+
+================================================================================
+4. STRUCTURE D'UN CHANGESET ET REGLE D'IMMUTABILITE
+================================================================================
+
+Un changeset est identifié par au minimum :
+
+  - id ;
+  - author ;
+  - fichier qui le contient.
+
+Dans notre projet, le fichier 001 utilise par exemple :
+
+  id: 001-create-student-table
+  author: students-team
+
+REGLE ABSOLUE :
+
+  Ne jamais modifier un changeset déjà exécuté.
+
+Liquibase enregistre un checksum. Si le contenu d'un changeset déjà exécuté
+change, Liquibase peut refuser le démarrage pour éviter une incohérence entre
+le dépôt Git et la base.
+
+Pour une nouvelle évolution, il faut créer un nouveau changeset et l'inclure
+dans le master changelog.
+
+
+================================================================================
+5. EXEMPLE D'UNE FUTURE MODIFICATION
+================================================================================
+
+Objectif :
+  Ajouter le numéro de téléphone d'un étudiant.
+
+Etape 1 - créer le fichier :
+
+  Liquibase\students-api\src\main\resources\db\changelog\changes\
+  003-add-student-phone.yaml
+
+Contenu possible :
+
+  databaseChangeLog:
+    - changeSet:
+        id: 003-add-student-phone
+        author: students-team
+        changes:
+          - addColumn:
+              tableName: student
+              columns:
+                - column:
+                    name: phone
+                    type: varchar(30)
+
+La colonne est nullable afin que les cinq anciennes lignes restent valides.
+
+Etape 2 - ajouter le fichier dans le master :
+
+  databaseChangeLog:
+    - include:
+        file: db/changelog/changes/001-create-student-table.yaml
+    - include:
+        file: db/changelog/changes/002-add-student-created-at.yaml
+    - include:
+        file: db/changelog/changes/003-add-student-phone.yaml
+
+Etape 3 - si le champ est fonctionnel :
+
+  - ajouter phone dans Student.java ;
+  - adapter le formulaire React ;
+  - adapter les réponses JSON ou DTO ;
+  - ajouter les tests API et les tests de validation.
+
+Etape 4 - lancer :
+
+  Set-Location "C:\Users\DELL\Documents\Master\Master_M2I\SEMESTRE 3\Génie Logiciel\TPs\TP-GL\Projet - Final\Liquibase\students-api"
+  mvn clean test
+
+Au démarrage, Liquibase doit exécuter uniquement le changeset 003. Les deux
+premiers doivent rester enregistrés comme déjà exécutés.
+
+
+================================================================================
+6. TESTS AUTOMATIQUES
+================================================================================
+
+Commande :
+
+  Set-Location "C:\Users\DELL\Documents\Master\Master_M2I\SEMESTRE 3\Génie Logiciel\TPs\TP-GL\Projet - Final\Liquibase\students-api"
+  mvn clean test
+
+Résultat attendu pour l'état actuel :
+
+  Tests run: 6, Failures: 0, Errors: 0, Skipped: 0
+  BUILD SUCCESS
+
+Les tests de StudentsApiApplicationTests.java vérifient notamment :
+
+  - le démarrage du contexte Spring ;
+  - les cinq données initiales ;
+  - les deux changesets exécutés ;
+  - la colonne CREATED_AT ;
+  - la conservation des étudiants ;
+  - les opérations GET, POST, PUT et DELETE.
+
+Après le changeset 003, ajouter une assertion qui vérifie la présence de PHONE.
+La vérification doit porter sur la base de données, car un champ ajouté seulement
+dans Java ne prouve pas que la migration a été appliquée.
+
+
+================================================================================
+7. TESTS MANUELS DE L'API
+================================================================================
+
+Démarrage :
+
+  mvn spring-boot:run
+
+Lecture :
+
+  Invoke-RestMethod -Method Get `
+    -Uri "http://localhost:8081/api/students"
+
+Création :
+
+  $body = @{
+    firstName = "Test"
+    lastName = "Liquibase"
+    email = "test.liquibase@etud.fr"
+    age = 24
+    filiere = "Informatique"
+  } | ConvertTo-Json
+
+  Invoke-WebRequest -UseBasicParsing -Method Post `
+    -Uri "http://localhost:8081/api/students" `
+    -ContentType "application/json" `
+    -Body $body
+
+Le statut attendu est 201.
+
+Pour PUT et DELETE, utiliser l'identifiant numérique retourné par le POST.
+Exemple si l'identifiant est 6 :
+
+  Invoke-WebRequest -UseBasicParsing -Method Delete `
+    -Uri "http://localhost:8081/api/students/6"
+
+Le statut attendu est 204.
+
+
+================================================================================
+8. VERIFICATION DANS H2
+================================================================================
+
+Ouvrir :
+
+  http://localhost:8081/h2-console
+
+Paramètres :
+
+  JDBC URL : jdbc:h2:mem:studentsdb
+  User     : sa
+  Password : vide
+
+Vérifier les changesets :
+
+  SELECT ID, AUTHOR, FILENAME, EXECTYPE
+  FROM DATABASECHANGELOG
+  ORDER BY ORDEREXECUTED;
+
+Résultat attendu dans l'état actuel :
+
+  001-create-student-table       EXECUTED
+  002-add-student-created-at     EXECUTED
+
+Après l'ajout du changeset 003, il doit apparaître une troisième ligne :
+
+  003-add-student-phone          EXECUTED
+
+Vérifier le verrou :
+
+  SELECT LOCKED
+  FROM DATABASECHANGELOGLOCK;
+
+Résultat attendu :
+
+  FALSE
+
+Vérifier la structure et les données :
+
+  SELECT ID, FIRST_NAME, LAST_NAME, CREATED_AT
+  FROM STUDENT
+  ORDER BY ID;
+
+Avec le changeset 003 :
+
+  SELECT ID, PHONE
+  FROM STUDENT
+  ORDER BY ID;
+
+H2 mem est recréée après un redémarrage du backend. Les données ajoutées avec
+l'API ne sont donc pas conservées entre deux démarrages, ce qui est attendu
+pour cette configuration locale.
+
+
+================================================================================
+9. CRITERES DE REUSSITE ET ERREURS A EVITER
+================================================================================
+
+La migration Liquibase est validée si :
+
+  - mvn clean test termine par BUILD SUCCESS ;
+  - chaque changeset attendu possède EXECTYPE=EXECUTED ;
+  - DATABASECHANGELOG contient les bons id et auteurs ;
+  - DATABASECHANGELOGLOCK contient LOCKED=FALSE ;
+  - la nouvelle colonne existe vraiment ;
+  - les données existantes sont conservées ;
+  - l'API et le frontend continuent à fonctionner.
+
+Erreurs fréquentes :
+
+  - modifier un changeset déjà exécuté ;
+  - créer un fichier sans l'inclure dans le master ;
+  - utiliser deux fois le même couple id/author ;
+  - oublier d'arrêter Flyway avant de lancer Liquibase ;
+  - exécuter l'API avec /api/students/ID au lieu d'un nombre ;
+  - ajouter une colonne NOT NULL sans valeur par défaut ;
+  - confondre DATABASECHANGELOG et DATABASECHANGELOGLOCK ;
+  - supprimer manuellement une ligne de l'historique pour forcer une migration.
+
+
+================================================================================
+10. CONCLUSION
+================================================================================
+
+Dans ce projet, Liquibase est utile lorsque l'équipe veut :
+
+  - décrire les changements de manière structurée ;
+  - séparer la description du changement de son exécution SQL ;
+  - gérer des opérations riches comme des contraintes, des index et des
+    relations avec des blocs explicites ;
+  - conserver un historique par id, auteur et fichier ;
+  - contrôler les exécutions concurrentes avec une table de verrou.
+
+La preuve finale est composée des tests Maven, des tests API, de la table
+DATABASECHANGELOG, de la table DATABASECHANGELOGLOCK et de la vérification
+de la structure dans H2.
