@@ -1,0 +1,14 @@
+databaseChangeLog:
+  - changeSet:
+      id: 002-add-student-created-at
+      author: students-team
+      changes:
+        - addColumn:
+            tableName: student
+            columns:
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  defaultValueDate: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false

@@ -1,0 +1,5 @@
+com\tp\students\repository\StudentRepository.class
+com\tp\students\controller\StudentController.class
+com\tp\students\service\StudentService.class
+com\tp\students\model\Student.class
+com\tp\students\StudentsApiApplication.class

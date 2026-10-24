@@ -1,0 +1,130 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-create-student-table
+      author: students-team
+      changes:
+        - createTable:
+            tableName: student
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: first_name
+                  type: VARCHAR(100)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: last_name
+                  type: VARCHAR(100)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: email
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: age
+                  type: INT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: filiere
+                  type: VARCHAR(100)
+                  constraints:
+                    nullable: false
+        - insert:
+            tableName: student
+            columns:
+              - column:
+                  name: first_name
+                  value: Alice
+              - column:
+                  name: last_name
+                  value: Martin
+              - column:
+                  name: email
+                  value: alice.martin@etud.fr
+              - column:
+                  name: age
+                  valueNumeric: 21
+              - column:
+                  name: filiere
+                  value: Informatique
+        - insert:
+            tableName: student
+            columns:
+              - column:
+                  name: first_name
+                  value: Bob
+              - column:
+                  name: last_name
+                  value: Dupont
+              - column:
+                  name: email
+                  value: bob.dupont@etud.fr
+              - column:
+                  name: age
+                  valueNumeric: 22
+              - column:
+                  name: filiere
+                  value: Mathématiques
+        - insert:
+            tableName: student
+            columns:
+              - column:
+                  name: first_name
+                  value: Camille
+              - column:
+                  name: last_name
+                  value: Bernard
+              - column:
+                  name: email
+                  value: camille.bernard@etud.fr
+              - column:
+                  name: age
+                  valueNumeric: 20
+              - column:
+                  name: filiere
+                  value: Physique
+        - insert:
+            tableName: student
+            columns:
+              - column:
+                  name: first_name
+                  value: David
+              - column:
+                  name: last_name
+                  value: Leclerc
+              - column:
+                  name: email
+                  value: david.leclerc@etud.fr
+              - column:
+                  name: age
+                  valueNumeric: 23
+              - column:
+                  name: filiere
+                  value: Informatique
+        - insert:
+            tableName: student
+            columns:
+              - column:
+                  name: first_name
+                  value: Emma
+              - column:
+                  name: last_name
+                  value: Rousseau
+              - column:
+                  name: email
+                  value: emma.rousseau@etud.fr
+              - column:
+                  name: age
+                  valueNumeric: 21
+              - column:
+                  name: filiere
+                  value: Chimie
