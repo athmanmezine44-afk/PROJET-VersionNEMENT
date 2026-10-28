@@ -1,0 +1,38 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: students
+      POSTGRES_USER: students
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Définissez POSTGRES_PASSWORD dans le fichier .env}
+    volumes:
+      - students-data:/var/lib/postgresql/data   # aucun port publié : base inaccessible depuis Internet
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U students -d students"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/students
+      DB_USER: students
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      APP_SEED_ENABLED: ${APP_SEED_ENABLED:-true}
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+
+volumes:
+  students-data:
