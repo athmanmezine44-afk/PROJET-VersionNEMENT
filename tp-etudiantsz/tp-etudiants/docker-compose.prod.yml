@@ -3,9 +3,9 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: postgres
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Définissez POSTGRES_PASSWORD dans le fichier .env}
+      POSTGRES_DB: students
+      POSTGRES_USER: students
+      POSTGRES_PASSWORD: root
     volumes:
       - students-data:/var/lib/postgresql/data   # aucun port publié : base inaccessible depuis Internet
     healthcheck:
@@ -21,9 +21,9 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DB_URL: jdbc:postgresql://localhost:5432/postgres
-      DB_USER: postgres
-      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_URL: jdbc:postgresql://localhost:5432/students
+      DB_USER: students
+      DB_PASSWORD: root
       APP_SEED_ENABLED: ${APP_SEED_ENABLED:-true}
 
   frontend:
