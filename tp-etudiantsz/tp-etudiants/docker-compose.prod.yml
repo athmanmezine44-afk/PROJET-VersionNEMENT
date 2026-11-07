@@ -21,7 +21,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DB_URL: jdbc:postgresql://localhost:5432/students
+      DB_URL: jdbc:postgresql://postgres:5432/students
       DB_USER: students
       DB_PASSWORD: root
       APP_SEED_ENABLED: ${APP_SEED_ENABLED:-true}
